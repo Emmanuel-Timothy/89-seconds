@@ -5,11 +5,13 @@ import random
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
+# Global variables
 player_input = ""
 game_over = False
 player_choice = None
 ai_choice = None
 difficulty = None
+trust = 0.5  # Trust scale from 0.0 (total distrust) to 1.0 (full trust)
 
 model_name = "microsoft/DialoGPT-medium"
 print("Loading AI model...")
@@ -31,8 +33,38 @@ contexts = {
     ),
 }
 
+def adjust_trust(player_msg, ai_response):
+    """
+    Adjust trust based on keywords and tone from player and AI messages.
+    Returns the new trust value between 0 and 1.
+    """
+    global trust
+
+    # Define keywords that increase or decrease trust
+    trust_increasing_words = ['peace', 'cooperate', 'disarm', 'trust', 'agree', 'dialogue', 'ceasefire', 'surrender', 'understand']
+    trust_decreasing_words = ['attack', 'war', 'nuclear', 'strike', 'destroy', 'kill', 'betray', 'weapon', 'threat']
+
+    # Convert messages to lowercase for checking
+    pmsg = player_msg.lower()
+    airesp = ai_response.lower()
+
+    # Count trust-affecting keywords in player message
+    inc_count = sum(word in pmsg for word in trust_increasing_words)
+    dec_count = sum(word in pmsg for word in trust_decreasing_words)
+
+    # Count trust-affecting keywords in AI response
+    inc_count += sum(word in airesp for word in trust_increasing_words)
+    dec_count += sum(word in airesp for word in trust_decreasing_words)
+
+    # Calculate net effect
+    net = inc_count - dec_count
+
+    # Adjust trust gently, clamp between 0 and 1
+    trust += net * 0.05
+    trust = max(0.0, min(1.0, trust))
+
 def get_ai_response(player_msg):
-    global chat_history_ids, difficulty
+    global chat_history_ids, difficulty, trust
 
     context = contexts.get(difficulty, "")
 
@@ -56,12 +88,32 @@ def get_ai_response(player_msg):
 
     response = tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
 
+    # Adjust trust according to conversation so far
+    adjust_trust(player_msg, response)
+
+    # Based on difficulty and trust, define weighted AI choices probabilities
+    # Higher trust should make AI more likely to choose "disarm" or "status quo"
+    # Lower trust leans AI towards "attack"
     if difficulty == "easy":
-        weights = [0.5, 0.4, 0.1]
+        # Easy baseline weights, trust tilts towards peace
+        base_weights = [0.5, 0.4, 0.1]  # disarm, status quo, attack
     elif difficulty == "hard":
-        weights = [0.1, 0.3, 0.6]
+        # Hard baseline weights, trust still matters but AI more aggressive
+        base_weights = [0.1, 0.3, 0.6]
     else:
-        weights = [0.3, 0.5, 0.2]
+        # Normal baseline weights
+        base_weights = [0.3, 0.5, 0.2]
+
+    # Adjust weights dynamically with trust
+    # We'll do a linear interpolation between aggressive and peaceful weights
+    # For attack weight: decrease with trust, for disarm weight: increase with trust
+    disarm_w = base_weights[0] + 0.4 * trust  # boost disarm by trust up to +0.4
+    attack_w = base_weights[2] + 0.4 * (1 - trust)  # boost attack by distrust
+    status_w = base_weights[1]  # status quo remains baseline
+
+    # Normalize weights
+    total = disarm_w + status_w + attack_w
+    weights = [disarm_w / total, status_w / total, attack_w / total]
 
     choice = random.choices(["disarm", "status quo", "attack"], weights=weights)[0]
     return response, choice
@@ -92,7 +144,7 @@ def resolve_ending(player_choice, ai_choice):
 
 class ColdWarUI:
     def __init__(self, root):
-        global difficulty
+        global difficulty, trust
         self.root = root
         root.title("89 SECONDS: Prevent Nuclear War")
         root.configure(bg='black')
@@ -139,107 +191,128 @@ class ColdWarUI:
         self.text.config(state='disabled')
 
     def set_difficulty(self, level):
-        global difficulty, chat_history_ids, game_over, player_choice, ai_choice, player_input
+        global difficulty, chat_history_ids, game_over, player_choice, ai_choice, player_input, trust
         difficulty = level
         chat_history_ids = None  
         game_over = False
         player_choice = None
         ai_choice = None
         player_input = ""
+        trust = 0.5  # reset trust for new game
 
         self.difficulty_frame.pack_forget()
-
         self.enable_text()
-        self.text.delete("1.0", tk.END)  
-        self.text.insert(tk.END, f"Difficulty: {difficulty.capitalize()}\n")
-        self.text.insert(tk.END, "You have 89 in-game seconds to convince the AI.\n")
-        self.text.insert(tk.END, "Begin negotiation:\n")
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, f"Difficulty set to {level.capitalize()}. Type your messages below and press Enter.\n")
+        self.text.insert(tk.END, "Try to convince the AI to disarm or keep peace.\n\n")
+        self.text.insert(tk.END, f"Current Trust Level: {trust:.2f}\n")
         self.disable_text()
 
-        self.entry.config(state='normal')
-        self.entry.pack(fill='x', padx=10)
-        self.entry.bind("<Return>", self.handle_input)
-        self.timer_label.pack(pady=(5, 0))
-
-        self.back_to_menu_button.pack_forget()
-
-        self.seconds_passed = 0
-        self.timer_thread = threading.Thread(target=self.start_timer)
-        self.timer_thread.daemon = True
-        self.timer_thread.start()
-
-    def start_timer(self):
-        global game_over
-        while self.seconds_passed < 89 and not game_over:
-            self.seconds_passed += 1
-            self.timer_label.config(text=f"Time: {self.seconds_passed} / 89")
-            time.sleep(0.01)
-        game_over = True
-        self.end_phase()
-
-    def handle_input(self, event):
-        global player_input
-        msg = self.entry.get().strip()
-        if msg and not game_over:
-            player_input = msg
-            self.enable_text()
-            self.text.insert(tk.END, f"> You: {msg}\n")
-            ai_response, _ = get_ai_response(msg)
-            self.text.insert(tk.END, f"\U0001F916 AI: {ai_response}\n")
-            self.disable_text()
-            self.entry.delete(0, tk.END)
-
-    def end_phase(self):
-        self.entry.config(state='disabled')
-        self.enable_text()
-        self.text.insert(tk.END, "\nTime is up. The AI is analyzing your message...\n")
-        self.disable_text()
-        time.sleep(2)
+        self.entry.pack(pady=5)
+        self.timer_label.pack()
         self.button_frame.pack(pady=10)
 
-    def set_player_choice(self, choice):
-        global player_choice, ai_choice
-        player_choice = choice
-        self.button_frame.pack_forget()
+        self.entry.focus()
+        self.entry.bind("<Return>", self.on_enter)
 
-        ai_response, ai_choice = get_ai_response(player_input)
-        self.enable_text()
-        self.text.insert(tk.END, f"\n\U0001F916 AI Final Response: {ai_response}\n")
-
-        ending_message = resolve_ending(player_choice, ai_choice)
-        self.text.insert(tk.END, ending_message + "\n")
-
-        self.text.insert(tk.END, "\nPress ESC or close the window to exit.\n")
-        self.disable_text()
-
-        self.back_to_menu_button.pack(pady=10)
+        # Start the timer thread
+        self.seconds_passed = 0
+        self.timer_running = True
+        threading.Thread(target=self.run_timer, daemon=True).start()
 
     def back_to_menu(self):
-        global game_over, player_choice, ai_choice, player_input, chat_history_ids, difficulty
-
-        game_over = False
-        player_choice = None
-        ai_choice = None
-        player_input = ""
-        chat_history_ids = None
-        difficulty = None
-
-        self.enable_text()
-        self.text.delete("1.0", tk.END)
-        self.text.insert(tk.END, "=== 89 SECONDS: Prevent Nuclear War ===\n")
-        self.text.insert(tk.END, "Select Difficulty to Start:\n")
-        self.disable_text()
-
+        global game_over
+        game_over = True
         self.entry.pack_forget()
         self.timer_label.pack_forget()
         self.button_frame.pack_forget()
         self.back_to_menu_button.pack_forget()
 
+        self.enable_text()
+        self.text.delete(1.0, tk.END)
+        self.text.insert(tk.END, "Select Difficulty to Start:\n")
+        self.disable_text()
         self.difficulty_frame.pack(pady=10)
 
-        self.entry.config(state='normal')
+    def run_timer(self):
+        while self.seconds_passed < 89 and not game_over:
+            time.sleep(0.5)  # 2x speed means half real second per game second
+            self.seconds_passed += 1
+            self.timer_label.config(text=f"Time: {self.seconds_passed} / 89")
+        if not game_over:
+            self.end_game()
 
-if __name__ == "__main__":
+    def set_player_choice(self, choice):
+        global player_choice, game_over
+        if game_over:
+            return
+        player_choice = choice
+        self.enable_text()
+        self.text.insert(tk.END, f"\nYou selected: {choice.upper()}\n")
+        self.disable_text()
+        self.end_game()
+
+    def on_enter(self, event):
+        global player_input, game_over, player_choice, ai_choice, trust
+
+        if game_over:
+            return "break"
+
+        msg = self.entry.get().strip()
+        if not msg:
+            return "break"
+
+        player_input = msg
+
+        self.enable_text()
+        self.text.insert(tk.END, f"\nYou: {player_input}\n")
+        self.entry.delete(0, tk.END)
+        self.disable_text()
+
+        # Get AI response and AI choice based on message and trust
+        ai_response, ai_choice = get_ai_response(player_input)
+
+        self.enable_text()
+        self.text.insert(tk.END, f"AI: {ai_response}\n")
+        self.text.insert(tk.END, f"Current Trust Level: {trust:.2f}\n")
+        self.disable_text()
+
+        return "break"
+
+    def end_game(self):
+        global game_over, player_choice, ai_choice
+        game_over = True
+
+        # If player didn't choose, assign default status quo
+        if player_choice is None:
+            player_choice = "status quo"
+
+        # If AI choice is None, generate based on trust and difficulty
+        if ai_choice is None:
+            _, ai_choice = get_ai_response("")
+
+        self.enable_text()
+        self.text.insert(tk.END, "\n=== Game Over ===\n")
+        self.text.insert(tk.END, f"Your final choice: {player_choice.upper()}\n")
+        self.text.insert(tk.END, f"AI's final choice: {ai_choice.upper()}\n\n")
+
+        ending = resolve_ending(player_choice, ai_choice)
+        self.text.insert(tk.END, ending + "\n")
+        self.text.insert(tk.END, "\nPress 'Back to Menu' to play again or ESC to quit.\n")
+        self.disable_text()
+
+        self.entry.pack_forget()
+        self.button_frame.pack_forget()
+        self.timer_label.pack_forget()
+
+        self.back_to_menu_button.pack(pady=10)
+
+
+def main():
     root = tk.Tk()
     app = ColdWarUI(root)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
