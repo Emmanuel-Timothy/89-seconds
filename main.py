@@ -13,7 +13,7 @@ player_choice = None
 ai_choice = None
 difficulty = None
 
-model_name = "openchat/openchat-3.5-1210"
+model_name = "microsoft/DialoGPT-medium"
 print("Loading AI model...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
@@ -36,16 +36,15 @@ contexts = {
 def get_ai_response(player_msg):
     global chat_history_ids, difficulty
 
-    # Prepend context to the player's message
     context = contexts.get(difficulty, "")
     full_msg = f"{context}\nPlayer: {player_msg}"
-
     new_input_ids = tokenizer.encode(full_msg + tokenizer.eos_token, return_tensors='pt')
-
     bot_input_ids = torch.cat([chat_history_ids, new_input_ids], dim=-1) if chat_history_ids is not None else new_input_ids
 
+    attention_mask = torch.ones_like(bot_input_ids)
     chat_history_ids = model.generate(
         bot_input_ids,
+        attention_mask=attention_mask,
         max_length=1000,
         pad_token_id=tokenizer.eos_token_id,
         do_sample=True,
@@ -54,17 +53,18 @@ def get_ai_response(player_msg):
         temperature=0.7
     )
 
-    response = tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
+    response = tokenizer.decode(
+        chat_history_ids[:, bot_input_ids.shape[-1]:][0],
+        skip_special_tokens=True
+    ).strip()
 
     if difficulty == "easy":
-        weights = [0.5, 0.4, 0.1]  # more likely to disarm
+        weights = [0.5, 0.4, 0.1]
     elif difficulty == "hard":
-        weights = [0.1, 0.3, 0.6]  # more likely to attack
+        weights = [0.1, 0.3, 0.6]
     else:
-        weights = [0.3, 0.5, 0.2]  # normal
+        weights = [0.3, 0.5, 0.2]
 
-    choice = random.choices(["disarm", "status quo", "attack"], weights=weights)[0]
-    return response, choice
     choice = random.choices(["disarm", "status quo", "attack"], weights=weights)[0]
     return response, choice
 
@@ -87,7 +87,7 @@ def resolve_ending(player_choice, ai_choice):
     elif player_choice == "disarm" and ai_choice == "status quo":
         return ["🔁 You chose peace, but the AI remained guarded. You're vulnerable now, but hope stirs. Ending: Uneasy Peace."]
     elif player_choice == "status quo" and ai_choice == "disarm":
-        return ["🔁 The AI offered peace, but you remained cautious. Trust could've ended this war. Ending: Missed Opportunity."]
+        return ["🔁 The AI offered peace, but you remained cautious. Trust could’ve ended this war. Ending: Missed Opportunity."]
 
 class ColdWarUI:
     def __init__(self, root):
@@ -145,7 +145,7 @@ class ColdWarUI:
         while self.seconds_passed < 89 and not game_over:
             self.seconds_passed += 1
             self.timer_label.config(text=f"Time: {self.seconds_passed} / 89")
-            time.sleep(1)
+            time.sleep(0.5)
         game_over = True
         self.end_phase()
 
