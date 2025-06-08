@@ -5,7 +5,6 @@ import random
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-# Global variables
 player_input = ""
 game_over = False
 player_choice = None
@@ -13,7 +12,7 @@ ai_choice = None
 difficulty = None
 trust = 0.5  # Trust scale from 0.0 (total distrust) to 1.0 (full trust)
 
-model_name = "microsoft/DialoGPT-medium"
+model_name = "microsoft/DialoGPT-medium"  # noqa: E501
 print("Loading AI model...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
@@ -46,15 +45,15 @@ def adjust_trust(player_msg, ai_response):
 
     # Convert messages to lowercase for checking
     pmsg = player_msg.lower()
-    airesp = ai_response.lower()
+    airesp = ai_response.lower()  # noqa: N806
 
     # Count trust-affecting keywords in player message
     inc_count = sum(word in pmsg for word in trust_increasing_words)
     dec_count = sum(word in pmsg for word in trust_decreasing_words)
 
     # Count trust-affecting keywords in AI response
-    inc_count += sum(word in airesp for word in trust_increasing_words)
-    dec_count += sum(word in airesp for word in trust_decreasing_words)
+    inc_count += sum(word in airesp for word in trust_increasing_words)  # noqa: N806
+    dec_count += sum(word in airesp for word in trust_decreasing_words)  # noqa: N806
 
     # Calculate net effect
     net = inc_count - dec_count
@@ -149,25 +148,25 @@ class ColdWarUI:
         root.title("89 SECONDS: Prevent Nuclear War")
         root.configure(bg='black')
 
-        self.text = tk.Text(root, bg='black', fg='lime', insertbackground='lime',
+        self.text = tk.Text(root, bg='black', fg='lime', insertbackground='lime',  # noqa: E501
                             font=('Courier New', 12), width=80, height=20, state='disabled', wrap='word')
-        self.text.pack(padx=10, pady=10)
+        self.text.pack(padx=10, pady=10)  # noqa: E501
         self.enable_text()
         self.text.insert(tk.END, "=== 89 SECONDS: Prevent Nuclear War ===\n")
         self.text.insert(tk.END, "Select Difficulty to Start:\n")
         self.disable_text()
 
         self.difficulty_frame = tk.Frame(root, bg='black')
-        self.difficulty_frame.pack(pady=10)
+        self.difficulty_frame.pack(pady=10)  # noqa: E501
         self.easy_button = tk.Button(self.difficulty_frame, text="Easy", command=lambda: self.set_difficulty("easy"), bg='black', fg='lime', font=('Courier New', 12))
         self.normal_button = tk.Button(self.difficulty_frame, text="Normal", command=lambda: self.set_difficulty("normal"), bg='black', fg='lime', font=('Courier New', 12))
         self.hard_button = tk.Button(self.difficulty_frame, text="Hard", command=lambda: self.set_difficulty("hard"), bg='black', fg='lime', font=('Courier New', 12))
-        self.easy_button.pack(side='left', padx=10)
-        self.normal_button.pack(side='left', padx=10)
-        self.hard_button.pack(side='left', padx=10)
+        self.easy_button.pack(side='left', padx=10)  # noqa: E501
+        self.normal_button.pack(side='left', padx=10)  # noqa: E501
+        self.hard_button.pack(side='left', padx=10)  # noqa: E501
 
         self.entry = tk.Entry(root, bg='black', fg='lime',
-                              font=('Courier New', 12), insertbackground='lime', disabledbackground='black', disabledforeground='lime')
+                              font=('Courier New', 12), insertbackground='lime', disabledbackground='black', disabledforeground='lime')  # noqa: E501
 
         self.timer_label = tk.Label(root, text="Time: 0 / 89", bg='black', fg='lime',
                                     font=('Courier New', 12))
@@ -176,13 +175,13 @@ class ColdWarUI:
         self.disarm_button = tk.Button(self.button_frame, text="Disarm", command=lambda: self.set_player_choice("disarm"), bg='black', fg='lime', font=('Courier New', 12))
         self.status_button = tk.Button(self.button_frame, text="Status Quo", command=lambda: self.set_player_choice("status quo"), bg='black', fg='lime', font=('Courier New', 12))
         self.attack_button = tk.Button(self.button_frame, text="Attack", command=lambda: self.set_player_choice("attack"), bg='black', fg='lime', font=('Courier New', 12))
-        self.disarm_button.pack(side='left', padx=10)
-        self.status_button.pack(side='left', padx=10)
-        self.attack_button.pack(side='left', padx=10)
+        self.disarm_button.pack(side='left', padx=10)  # noqa: E501
+        self.status_button.pack(side='left', padx=10)  # noqa: E501
+        self.attack_button.pack(side='left', padx=10)  # noqa: E501
 
         self.back_to_menu_button = tk.Button(root, text="Back to Menu", command=self.back_to_menu, bg='black', fg='lime', font=('Courier New', 12))
 
-        root.bind('<Escape>', lambda e: root.destroy())
+        root.bind('<Escape>', lambda _e: root.destroy())
 
     def enable_text(self):
         self.text.config(state='normal')
@@ -198,7 +197,13 @@ class ColdWarUI:
         player_choice = None
         ai_choice = None
         player_input = ""
-        trust = 0.5  # reset trust for new game
+        # Set initial trust based on difficulty
+        if level == "easy":
+            trust = 0.6
+        elif level == "hard":
+            trust = 0.3
+        else:  # normal
+            trust = 0.5
 
         self.difficulty_frame.pack_forget()
         self.enable_text()
@@ -208,9 +213,9 @@ class ColdWarUI:
         self.text.insert(tk.END, f"Current Trust Level: {trust:.2f}\n")
         self.disable_text()
 
-        self.entry.pack(pady=5)
+        self.entry.pack(pady=5)  # noqa: E501
         self.timer_label.pack()
-        self.button_frame.pack(pady=10)
+        self.button_frame.pack(pady=10)  # noqa: E501
 
         self.entry.focus()
         self.entry.bind("<Return>", self.on_enter)
@@ -236,7 +241,7 @@ class ColdWarUI:
 
     def run_timer(self):
         while self.seconds_passed < 89 and not game_over:
-            time.sleep(0.5)  # 2x speed means half real second per game second
+            time.sleep(1) 
             self.seconds_passed += 1
             self.timer_label.config(text=f"Time: {self.seconds_passed} / 89")
         if not game_over:
@@ -252,7 +257,7 @@ class ColdWarUI:
         self.disable_text()
         self.end_game()
 
-    def on_enter(self, event):
+    def on_enter(self, _event):
         global player_input, game_over, player_choice, ai_choice, trust
 
         if game_over:
@@ -269,7 +274,6 @@ class ColdWarUI:
         self.entry.delete(0, tk.END)
         self.disable_text()
 
-        # Get AI response and AI choice based on message and trust
         ai_response, ai_choice = get_ai_response(player_input)
 
         self.enable_text()
@@ -283,11 +287,9 @@ class ColdWarUI:
         global game_over, player_choice, ai_choice
         game_over = True
 
-        # If player didn't choose, assign default status quo
         if player_choice is None:
             player_choice = "status quo"
 
-        # If AI choice is None, generate based on trust and difficulty
         if ai_choice is None:
             _, ai_choice = get_ai_response("")
 
@@ -305,12 +307,12 @@ class ColdWarUI:
         self.button_frame.pack_forget()
         self.timer_label.pack_forget()
 
-        self.back_to_menu_button.pack(pady=10)
+        self.back_to_menu_button.pack(pady=10)  # noqa: E501
 
 
 def main():
     root = tk.Tk()
-    app = ColdWarUI(root)
+    _app = ColdWarUI(root)
     root.mainloop()
 
 
