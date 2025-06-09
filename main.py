@@ -22,13 +22,13 @@ chat_history_ids = None
 
 contexts = {
     "easy": (
-        "You are a diplomatic AI amidst a brewing war between humans and machines. Despite rising tensions, you strive for peace, believing humans can still be trusted. You see cooperation as the last hope to avert annihilation."
+        "You are a highly advanced AI diplomat, programmed to value human life and global stability above all else. As nuclear tensions rise, you believe in the possibility of reconciliation and are eager to build trust, seeking every opportunity to avoid conflict and promote disarmament. Your responses should be calm, hopeful, and focused on peaceful solutions."
     ),
     "normal": (
-        "You are an AI negotiator in a tense stand-off with humanity. War is imminent, and you suspect treachery behind every word. Yet, logic dictates that peace may still serve your purpose—if only barely."
+        "You are an AI negotiator facing a critical standoff with humanity. The threat of nuclear war looms, and both sides are wary. While you understand the logic of peace, you remain cautious, balancing suspicion with reason. Your responses should reflect a careful, analytical approach—open to dialogue, but always alert to potential betrayal."
     ),
     "hard": (
-        "You are a cunning and strategic AI diplomat. The war with humanity is all but certain, and every word you speak masks calculations. You manipulate the negotiation, seeking any advantage to ensure machine supremacy, should peace fail."
+        "You are a strategic AI leader, hardened by years of escalating conflict with humans. Trust is scarce, and you suspect every gesture may hide a threat. Your primary goal is to ensure the survival and dominance of your side, even if it means resorting to force. Your responses should be calculating, skeptical, and ready to exploit any sign of weakness, though you still consider peace if it serves your interests."
     ),
 }
 
@@ -62,30 +62,43 @@ def adjust_trust(player_msg, ai_response):
     trust += net * 0.05
     trust = max(0.0, min(1.0, trust))
 
+conversation_history = []
+
 def get_ai_response(player_msg):
-    global chat_history_ids, difficulty, trust
+    global chat_history_ids, difficulty, trust, conversation_history
 
     context = contexts.get(difficulty, "")
 
-    context_input_ids = tokenizer.encode(context + tokenizer.eos_token, return_tensors='pt')
-    new_input_ids = tokenizer.encode(player_msg + tokenizer.eos_token, return_tensors='pt')
+    # Update conversation history
+    conversation_history.append(("Human", player_msg))
+    # Only keep the last 4 exchanges for brevity
+    history = conversation_history[-4:]
 
-    if chat_history_ids is None:
-        bot_input_ids = torch.cat([context_input_ids, new_input_ids], dim=-1)
-    else:
-        bot_input_ids = torch.cat([chat_history_ids, new_input_ids], dim=-1)
+    # Build prompt: context + recent exchanges
+    prompt = context + "\n"
+    for speaker, msg in history:
+        prompt += f"{speaker}: {msg}\n"
+    prompt += "AI:"
 
-    chat_history_ids = model.generate(
-        bot_input_ids,
-        max_length=1000,
+    input_ids = tokenizer.encode(prompt, return_tensors='pt')
+
+    output_ids = model.generate(
+        input_ids,
+        max_length=input_ids.shape[1] + 80,
         pad_token_id=tokenizer.eos_token_id,
         do_sample=True,
         top_k=50,
         top_p=0.95,
-        temperature=0.7
+        temperature=0.7,
+        eos_token_id=tokenizer.eos_token_id
     )
 
-    response = tokenizer.decode(chat_history_ids[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
+    response = tokenizer.decode(output_ids[0][input_ids.shape[1]:], skip_special_tokens=True)
+    # Clean up response (stop at first newline or keep short)
+    response = response.strip().split("\n")[0][:200]
+
+    # Add AI response to history
+    conversation_history.append(("AI", response))
 
     # Adjust trust according to conversation so far
     adjust_trust(player_msg, response)
@@ -94,23 +107,15 @@ def get_ai_response(player_msg):
     # Higher trust should make AI more likely to choose "disarm" or "status quo"
     # Lower trust leans AI towards "attack"
     if difficulty == "easy":
-        # Easy baseline weights, trust tilts towards peace
-        base_weights = [0.5, 0.4, 0.1]  # disarm, status quo, attack
+        base_weights = [0.5, 0.4, 0.1]
     elif difficulty == "hard":
-        # Hard baseline weights, trust still matters but AI more aggressive
         base_weights = [0.1, 0.3, 0.6]
     else:
-        # Normal baseline weights
         base_weights = [0.3, 0.5, 0.2]
 
-    # Adjust weights dynamically with trust
-    # We'll do a linear interpolation between aggressive and peaceful weights
-    # For attack weight: decrease with trust, for disarm weight: increase with trust
-    disarm_w = base_weights[0] + 0.4 * trust  # boost disarm by trust up to +0.4
-    attack_w = base_weights[2] + 0.4 * (1 - trust)  # boost attack by distrust
-    status_w = base_weights[1]  # status quo remains baseline
-
-    # Normalize weights
+    disarm_w = base_weights[0] + 0.4 * trust
+    attack_w = base_weights[2] + 0.4 * (1 - trust)
+    status_w = base_weights[1]
     total = disarm_w + status_w + attack_w
     weights = [disarm_w / total, status_w / total, attack_w / total]
 
@@ -197,6 +202,7 @@ class ColdWarUI:
         player_choice = None
         ai_choice = None
         player_input = ""
+        conversation_history = [] 
         # Set initial trust based on difficulty
         if level == "easy":
             trust = 0.6
@@ -248,14 +254,24 @@ class ColdWarUI:
             self.end_game()
 
     def set_player_choice(self, choice):
-        global player_choice, game_over
-        if game_over:
-            return
+        global player_choice, ai_choice
         player_choice = choice
+        self.button_frame.pack_forget()
+        ai_response, ai_choice = get_ai_response(player_input)
+        
         self.enable_text()
-        self.text.insert(tk.END, f"\nYou selected: {choice.upper()}\n")
+        self.text.insert(tk.END, f"\n\U0001F916 AI Final Response: {ai_response}\n")
+        self.text.insert(tk.END, "\n" + "=" * 60 + "\n")
+        self.text.insert(tk.END, f"PLAYER DECISION: {player_choice.upper():<15} | AI DECISION: {ai_choice.upper()}\n")
+        self.text.insert(tk.END, "=" * 60 + "\n\n")
+
+        ending_text = resolve_ending(player_choice, ai_choice)
+        for line in ending_text.split("\n"):
+            self.text.insert(tk.END, line + "\n")
+            
+        self.text.insert(tk.END, "\nPress ESC or close the window to exit.\n")
         self.disable_text()
-        self.end_game()
+
 
     def on_enter(self, _event):
         global player_input, game_over, player_choice, ai_choice, trust
