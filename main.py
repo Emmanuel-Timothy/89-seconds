@@ -186,6 +186,7 @@ class ColdWarUI:
         self.entry.delete(0, tk.END)
         self._write(f"\nYou: {msg}\n")
         ai_resp = self.game.get_ai_response(msg)
+        #debug tool V
         #self._write(f"AI: {ai_resp}\nCurrent Trust Level: {self.game.trust:.2f}\n")
         #self._write(f"Current Emotion: {self.game.emotion.upper()}\n")
         
@@ -228,11 +229,15 @@ class ColdWarUI:
         self.difficulty_frame.pack(pady=10)
         self.timer_running = False
 
-def main():
+def load_ai_model():
     print("Loading AI model...")
     tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
     model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
     print("AI model loaded.")
+    return model, tokenizer
+
+def main():
+    model, tokenizer = load_ai_model()
     game = GameState(model, tokenizer)
     root = tk.Tk()
     ColdWarUI(root, game)
