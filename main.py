@@ -12,7 +12,7 @@ ai_choice = None
 difficulty = None
 trust = 0.5  # Trust scale from 0.0 (total distrust) to 1.0 (full trust)
 
-model_name = "microsoft/DialoGPT-large"  # noqa: E501
+model_name = "microsoft/DialoGPT-medium"
 print("Loading AI model...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
@@ -44,13 +44,13 @@ def adjust_trust(player_msg, ai_response):
     trust_decreasing_words = ['attack', 'war', 'nuclear', 'strike', 'destroy', 'kill', 'betray', 'weapon', 'threat']
 
     pmsg = player_msg.lower()
-    airesp = ai_response.lower()  # noqa: N806
+    airesp = ai_response.lower()
 
     inc_count = sum(word in pmsg for word in trust_increasing_words)
     dec_count = sum(word in pmsg for word in trust_decreasing_words)
 
-    inc_count += sum(word in airesp for word in trust_increasing_words)  # noqa: N806
-    dec_count += sum(word in airesp for word in trust_decreasing_words)  # noqa: N806
+    inc_count += sum(word in airesp for word in trust_increasing_words)
+    dec_count += sum(word in airesp for word in trust_decreasing_words)
 
     net = inc_count - dec_count
 
@@ -142,25 +142,25 @@ class ColdWarUI:
         root.title("89 SECONDS: Prevent Nuclear War")
         root.configure(bg='black')
 
-        self.text = tk.Text(root, bg='black', fg='lime', insertbackground='lime',  # noqa: E501
+        self.text = tk.Text(root, bg='black', fg='lime', insertbackground='lime',   
                             font=('Courier New', 12), width=80, height=20, state='disabled', wrap='word')
-        self.text.pack(padx=10, pady=10)  # noqa: E501
+        self.text.pack(padx=10, pady=10)   
         self.enable_text()
         self.text.insert(tk.END, "=== 89 SECONDS: Prevent Nuclear War ===\n")
         self.text.insert(tk.END, "Select Difficulty to Start:\n")
         self.disable_text()
 
         self.difficulty_frame = tk.Frame(root, bg='black')
-        self.difficulty_frame.pack(pady=10)  # noqa: E501
+        self.difficulty_frame.pack(pady=10)   
         self.easy_button = tk.Button(self.difficulty_frame, text="Easy", command=lambda: self.set_difficulty("easy"), bg='black', fg='lime', font=('Courier New', 12))
         self.normal_button = tk.Button(self.difficulty_frame, text="Normal", command=lambda: self.set_difficulty("normal"), bg='black', fg='lime', font=('Courier New', 12))
         self.hard_button = tk.Button(self.difficulty_frame, text="Hard", command=lambda: self.set_difficulty("hard"), bg='black', fg='lime', font=('Courier New', 12))
-        self.easy_button.pack(side='left', padx=10)  # noqa: E501
-        self.normal_button.pack(side='left', padx=10)  # noqa: E501
-        self.hard_button.pack(side='left', padx=10)  # noqa: E501
+        self.easy_button.pack(side='left', padx=10)   
+        self.normal_button.pack(side='left', padx=10)   
+        self.hard_button.pack(side='left', padx=10)   
 
         self.entry = tk.Entry(root, bg='black', fg='lime',
-                              font=('Courier New', 12), insertbackground='lime', disabledbackground='black', disabledforeground='lime')  # noqa: E501
+                              font=('Courier New', 12), insertbackground='lime', disabledbackground='black', disabledforeground='lime')   
 
         self.timer_label = tk.Label(root, text="Time: 0 / 89", bg='black', fg='lime',
                                     font=('Courier New', 12))
@@ -169,9 +169,9 @@ class ColdWarUI:
         self.disarm_button = tk.Button(self.button_frame, text="Disarm", command=lambda: self.set_player_choice("disarm"), bg='black', fg='lime', font=('Courier New', 12))
         self.status_button = tk.Button(self.button_frame, text="Status Quo", command=lambda: self.set_player_choice("status quo"), bg='black', fg='lime', font=('Courier New', 12))
         self.attack_button = tk.Button(self.button_frame, text="Attack", command=lambda: self.set_player_choice("attack"), bg='black', fg='lime', font=('Courier New', 12))
-        self.disarm_button.pack(side='left', padx=10)  # noqa: E501
-        self.status_button.pack(side='left', padx=10)  # noqa: E501
-        self.attack_button.pack(side='left', padx=10)  # noqa: E501
+        self.disarm_button.pack(side='left', padx=10)   
+        self.status_button.pack(side='left', padx=10)   
+        self.attack_button.pack(side='left', padx=10)   
 
         self.back_to_menu_button = tk.Button(root, text="Back to Menu", command=self.back_to_menu, bg='black', fg='lime', font=('Courier New', 12))
 
@@ -208,9 +208,9 @@ class ColdWarUI:
         self.text.insert(tk.END, f"Current Trust Level: {trust:.2f}\n")
         self.disable_text()
 
-        self.entry.pack(pady=5)  # noqa: E501
+        self.entry.pack(pady=5)   
         self.timer_label.pack()
-        self.button_frame.pack(pady=10)  # noqa: E501
+        self.button_frame.pack(pady=10)   
 
         self.entry.focus()
         self.entry.bind("<Return>", self.on_enter)
@@ -312,7 +312,7 @@ class ColdWarUI:
         self.button_frame.pack_forget()
         self.timer_label.pack_forget()
 
-        self.back_to_menu_button.pack(pady=10)  # noqa: E501
+        self.back_to_menu_button.pack(pady=10)   
 
 
 def main():
