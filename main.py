@@ -132,6 +132,7 @@ class GameState:
         }
         return endings.get((player, ai), "❓ The fates are unclear. Your choices lead to an unknown outcome.")
 
+#fuck this UI, Respect for frontend devs
 class ColdWarUI:
     def __init__(self, root, game):
         self.root = root
