@@ -12,7 +12,7 @@ ai_choice = None
 difficulty = None
 trust = 0.5  # Trust scale from 0.0 (total distrust) to 1.0 (full trust)
 
-model_name = "microsoft/DialoGPT-medium"  # noqa: E501
+model_name = "microsoft/DialoGPT-large"  # noqa: E501
 print("Loading AI model...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
@@ -43,22 +43,17 @@ def adjust_trust(player_msg, ai_response):
     trust_increasing_words = ['peace', 'cooperate', 'disarm', 'trust', 'agree', 'dialogue', 'ceasefire', 'surrender', 'understand']
     trust_decreasing_words = ['attack', 'war', 'nuclear', 'strike', 'destroy', 'kill', 'betray', 'weapon', 'threat']
 
-    # Convert messages to lowercase for checking
     pmsg = player_msg.lower()
     airesp = ai_response.lower()  # noqa: N806
 
-    # Count trust-affecting keywords in player message
     inc_count = sum(word in pmsg for word in trust_increasing_words)
     dec_count = sum(word in pmsg for word in trust_decreasing_words)
 
-    # Count trust-affecting keywords in AI response
     inc_count += sum(word in airesp for word in trust_increasing_words)  # noqa: N806
     dec_count += sum(word in airesp for word in trust_decreasing_words)  # noqa: N806
 
-    # Calculate net effect
     net = inc_count - dec_count
 
-    # Adjust trust gently, clamp between 0 and 1
     trust += net * 0.05
     trust = max(0.0, min(1.0, trust))
 
@@ -69,12 +64,9 @@ def get_ai_response(player_msg):
 
     context = contexts.get(difficulty, "")
 
-    # Update conversation history
     conversation_history.append(("Human", player_msg))
-    # Only keep the last 4 exchanges for brevity
-    history = conversation_history[-4:]
+    history = conversation_history
 
-    # Build prompt: context + recent exchanges
     prompt = context + "\n"
     for speaker, msg in history:
         prompt += f"{speaker}: {msg}\n"
@@ -94,13 +86,10 @@ def get_ai_response(player_msg):
     )
 
     response = tokenizer.decode(output_ids[0][input_ids.shape[1]:], skip_special_tokens=True)
-    # Clean up response (stop at first newline or keep short)
     response = response.strip().split("\n")[0][:200]
 
-    # Add AI response to history
     conversation_history.append(("AI", response))
 
-    # Adjust trust according to conversation so far
     adjust_trust(player_msg, response)
 
     # Based on difficulty and trust, define weighted AI choices probabilities
